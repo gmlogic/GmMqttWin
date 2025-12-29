@@ -2,13 +2,11 @@
 Imports MQTTnet
 Imports MQTTnet.Client
 Imports MQTTnet.Client.Options
-Imports MQTTnet.Protocol
 Imports System.Text
 
 Public Class FrmFakePlug
 
     Private mqttClient As IMqttClient
-    Private blinkTimer As New Timer()
 
     Private mqttServer As String
     Private mqttPort As Integer
@@ -16,20 +14,20 @@ Public Class FrmFakePlug
     Private mqttPass As String
 
     Private Const TOPIC_CMD As String = "gmiot/cmd"
-    Private Const TOPIC_STATUS As String = "gmiot/status"
 
-    Private Sub FrmFakePlug_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    ' arrays για 16 κανάλια
+    Private pnl(15) As Panel
+    Private lbl(15) As Label
+
+    Private Sub FrmFakePlug_Load(sender As Object, e As EventArgs) _
+        Handles MyBase.Load
+
         mqttServer = ConfigurationManager.AppSettings("MQTT_SERVER")
         mqttPort = Integer.Parse(ConfigurationManager.AppSettings("MQTT_PORT"))
         mqttUser = ConfigurationManager.AppSettings("MQTT_USER")
         mqttPass = ConfigurationManager.AppSettings("MQTT_PASS")
 
-        pnlLed.BackColor = Color.DarkGray
-        lblState.Text = "OFF"
-        lblConn.Text = "Disconnected"
-
-        blinkTimer.Interval = 500
-        AddHandler blinkTimer.Tick, AddressOf BlinkTick
+        CreateUi()
 
         Dim factory As New MqttFactory()
         mqttClient = factory.CreateMqttClient()
@@ -47,9 +45,37 @@ Public Class FrmFakePlug
             End Function
     End Sub
 
-    Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) Handles btnConnect.Click
+    ' ===== UI CREATION (runtime, ασφαλές) =====
+    Private Sub CreateUi()
+
+        For i As Integer = 0 To 15
+
+            pnl(i) = New Panel()
+            pnl(i).Size = New Size(60, 60)
+            pnl(i).BackColor = Color.DarkGray
+
+            lbl(i) = New Label()
+            lbl(i).Size = New Size(80, 30)
+            lbl(i).TextAlign = ContentAlignment.MiddleCenter
+            lbl(i).Text = $"CH{i}" & vbCrLf & "0°"
+
+            Dim col = i Mod 4
+            Dim row = i \ 4
+
+            pnl(i).Location = New Point(20 + col * 190, 70 + row * 100)
+            lbl(i).Location = New Point(90 + col * 190, 75 + row * 100)
+
+            Me.Controls.Add(pnl(i))
+            Me.Controls.Add(lbl(i))
+        Next
+
+    End Sub
+
+    Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) _
+        Handles btnConnect.Click
+
         Dim options = New MqttClientOptionsBuilder().
-            WithClientId("fakeplug-1").
+            WithClientId("fake-pca9685").
             WithTcpServer(mqttServer, mqttPort).
             WithCredentials(mqttUser, mqttPass).
             Build()
@@ -60,58 +86,32 @@ Public Class FrmFakePlug
         lblConn.Text = "Connected"
     End Sub
 
-    ' ===== COMMAND HANDLER =====
+    ' ===== MQTT COMMAND =====
     Private Sub HandleCommand(cmd As String)
 
-        ' -------- SPEED SIMULATION --------
-        If cmd.StartsWith("SPEED:") Then
-            blinkTimer.Stop()
+        If Not cmd.StartsWith("SERVO:") Then Return
 
-            Dim speed As Integer = Integer.Parse(cmd.Split(":"c)(1))
+        Dim parts = cmd.Split(":"c)
+        If parts.Length <> 3 Then Return
 
-            lblState.Text = $"SPEED {speed}%"
+        Dim ch = Integer.Parse(parts(1))
+        Dim pwm = Integer.Parse(parts(2))
 
-            ' Χρώμα ανάλογα με ταχύτητα
-            pnlLed.BackColor = Color.FromArgb(
-                255,
-                Math.Min(255, speed * 2),
-                Math.Max(0, 255 - speed * 2),
-                0
-            )
+        If ch < 0 OrElse ch > 15 Then Return
 
-            Return
-        End If
+        pwm = Math.Max(0, Math.Min(4095, pwm))
 
-        Select Case cmd
-            Case "ON"
-                blinkTimer.Stop()
-                pnlLed.BackColor = Color.LimeGreen
-                lblState.Text = "ON"
+        Dim angle = CInt((pwm / 4095.0) * 180)
 
-            Case "OFF"
-                blinkTimer.Stop()
-                pnlLed.BackColor = Color.DarkGray
-                lblState.Text = "OFF"
+        lbl(ch).Text = $"CH{ch}" & vbCrLf & $"{angle}°"
 
-            Case "BLINK"
-                blinkTimer.Start()
-                lblState.Text = "BLINK"
+        pnl(ch).BackColor = Color.FromArgb(
+            255,
+            Math.Min(255, angle * 2),
+            Math.Max(0, 255 - angle * 2),
+            100
+        )
 
-            Case "MOTOR_ON"
-                blinkTimer.Stop()
-                pnlLed.BackColor = Color.Orange
-                lblState.Text = "MOTOR RUNNING"
-
-            Case "MOTOR_OFF"
-                blinkTimer.Stop()
-                pnlLed.BackColor = Color.DarkGray
-                lblState.Text = "MOTOR STOPPED"
-        End Select
-    End Sub
-
-    Private Sub BlinkTick(sender As Object, e As EventArgs)
-        pnlLed.BackColor =
-            If(pnlLed.BackColor = Color.DarkGray, Color.LimeGreen, Color.DarkGray)
     End Sub
 
 End Class
