@@ -1,6 +1,5 @@
 ﻿Imports MQTTnet
 Imports MQTTnet.Client
-Imports MQTTnet.Client.Options
 Imports System.Configuration
 
 Public Class FrmMqttController
