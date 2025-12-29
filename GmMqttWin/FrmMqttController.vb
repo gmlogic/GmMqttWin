@@ -1,78 +1,68 @@
-﻿Imports MQTTnet
+﻿Imports System.Configuration
+Imports MQTTnet
 Imports MQTTnet.Client
-Imports System.Configuration
+Imports MQTTnet.Client.Options
 
 Public Class FrmMqttController
 
     Private mqttClient As IMqttClient
 
-    Private mqttServer As String
-    Private mqttPort As Integer
-    Private mqttUser As String
-    Private mqttPass As String
-
-    Private Sub FrmMqttController_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' Διάβασμα από App.config
-        mqttServer = ConfigurationManager.AppSettings("MQTT_SERVER")
-        mqttPort = Integer.Parse(ConfigurationManager.AppSettings("MQTT_PORT"))
-        mqttUser = ConfigurationManager.AppSettings("MQTT_USER")
-        mqttPass = ConfigurationManager.AppSettings("MQTT_PASS")
+    Private Sub FrmMqttController_Load(sender As Object, e As EventArgs) _
+        Handles MyBase.Load
 
         Dim factory As New MqttFactory()
         mqttClient = factory.CreateMqttClient()
-
-        lblStatus.Text = "Status: Disconnected"
     End Sub
 
-    Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) Handles btnConnect.Click
-        Try
-            Dim options = New MqttClientOptionsBuilder() _
-                .WithClientId("gm-controller") _
-                .WithTcpServer(mqttServer, mqttPort) _
-                .WithCredentials(mqttUser, mqttPass) _
-                .Build()
+    Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) _
+        Handles btnConnect.Click
 
-            Await mqttClient.ConnectAsync(options)
-            lblStatus.Text = "Status: Connected"
-        Catch ex As Exception
-            lblStatus.Text = "Error: " & ex.Message
-        End Try
+        Dim server = ConfigurationManager.AppSettings("MQTT_SERVER")
+        Dim port = Integer.Parse(ConfigurationManager.AppSettings("MQTT_PORT"))
+        Dim user = ConfigurationManager.AppSettings("MQTT_USER")
+        Dim pass = ConfigurationManager.AppSettings("MQTT_PASS")
+
+        Dim options = New MqttClientOptionsBuilder().
+            WithClientId("gm-controller").
+            WithTcpServer(server, port).
+            WithCredentials(user, pass).
+            Build()
+
+        Await mqttClient.ConnectAsync(options)
+        lblStatus.Text = "Status: Connected"
     End Sub
 
-    Private Async Sub Publish(topic As String, payload As String)
+    Private Async Sub Publish(cmd As String)
         If mqttClient Is Nothing OrElse Not mqttClient.IsConnected Then Exit Sub
 
-        Dim msg = New MqttApplicationMessageBuilder() _
-            .WithTopic(topic) _
-            .WithPayload(payload) _
-            .Build()
+        Dim msg = New MqttApplicationMessageBuilder().
+            WithTopic("gmiot/cmd").
+            WithPayload(cmd).
+            Build()
 
         Await mqttClient.PublishAsync(msg)
     End Sub
 
-    Private Sub btnOn_Click(sender As Object, e As EventArgs) Handles btnOn.Click
-        Publish("gmiot/cmd", "ON")
-        lblStatus.Text = "Status: ON"
+    Private Sub btnOn_Click(sender As Object, e As EventArgs) _
+        Handles btnOn.Click
+        Publish("ON")
     End Sub
 
-    Private Sub btnOff_Click(sender As Object, e As EventArgs) Handles btnOff.Click
-        Publish("gmiot/cmd", "OFF")
-        lblStatus.Text = "Status: OFF"
+    Private Sub btnOff_Click(sender As Object, e As EventArgs) _
+        Handles btnOff.Click
+        Publish("OFF")
     End Sub
 
-    Private Sub btnBlink_Click(sender As Object, e As EventArgs) Handles btnBlink.Click
-        Publish("gmiot/cmd", "BLINK")
-        lblStatus.Text = "Status: BLINK"
+    Private Sub btnBlink_Click(sender As Object, e As EventArgs) _
+        Handles btnBlink.Click
+        Publish("BLINK")
     End Sub
 
-    Private Sub btnMotorOn_Click(sender As Object, e As EventArgs) Handles btnMotorOn.Click
-        Publish("gmiot/cmd", "MOTOR_ON")
-        lblStatus.Text = "Status: MOTOR ON"
-    End Sub
+    Private Sub trackSpeed_Scroll(sender As Object, e As EventArgs) _
+        Handles trackSpeed.Scroll
 
-    Private Sub btnMotorOff_Click(sender As Object, e As EventArgs) Handles btnMotorOff.Click
-        Publish("gmiot/cmd", "MOTOR_OFF")
-        lblStatus.Text = "Status: MOTOR OFF"
+        lblSpeed.Text = $"Speed: {trackSpeed.Value}%"
+        Publish($"SPEED:{trackSpeed.Value}")
     End Sub
 
 End Class
